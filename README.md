@@ -1,6 +1,8 @@
 # project-onboard
 
-Claude Code plugin that bootstraps a new project to a consistent standard.
+Claude Code plugin that takes a project to a consistent standard — a
+brand-new one, a stale one being revived, or one that never got properly set
+up (`--adopt` gap-fills without touching existing files, history, or remotes).
 One skill, two phases:
 
 - **Phase A (mechanical)** — `scripts/onboard.sh` creates the directory,
@@ -24,9 +26,10 @@ plugin from it:
 
 ## Use
 
-Say "new project called X" / "bootstrap X" / "set up a repo for X" — the
-`project-onboard` skill triggers before any directory or repo is created by
-hand. See `USAGE.md` for worked examples.
+Say "new project called X" / "bootstrap X" / "set up a repo for X" — or, for
+existing directories, "revive X" / "get X going again" / "X never got set up
+properly" — the `project-onboard` skill triggers before any directory or repo
+is created or reworked by hand. See `USAGE.md` for worked examples.
 
 ## Layout
 

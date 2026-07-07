@@ -5,7 +5,11 @@
 #
 # Usage:
 #   onboard.sh --name <Name> [--desc "one-liner"] [--stack web-ts|node-ts|ios|python|generic]
-#              [--public] [--no-github] [--dev-root DIR] [--owner GITHUB_LOGIN]
+#              [--adopt] [--public] [--no-github] [--dev-root DIR] [--owner GITHUB_LOGIN]
+#
+# Modes: default creates <dev-root>/<Name> and refuses if it exists; --adopt onboards an
+# EXISTING directory instead — gap-fills missing scaffold files only, never overwrites a
+# file, never touches history/branches/remotes, stages only what it created.
 #
 # Defaults: private GitHub repo under the authenticated gh user, dev root = $PWD,
 # stack generic. Git identity is read from your global git config and pinned
@@ -16,12 +20,13 @@ DEV_ROOT="${DEV_ROOT:-$PWD}"
 NAME=""
 DESC=""
 STACK="generic"
+MODE="new"
 VISIBILITY="private"
 DO_GITHUB=1
 GH_OWNER="${GH_OWNER:-}"
 
 usage() {
-  sed -n '2,12p' "$0" | sed 's/^# \{0,1\}//'
+  sed -n '2,16p' "$0" | sed 's/^# \{0,1\}//'
 }
 
 while [ $# -gt 0 ]; do
@@ -29,6 +34,7 @@ while [ $# -gt 0 ]; do
     --name)      NAME="${2:?--name needs a value}"; shift 2 ;;
     --desc)      DESC="${2:?--desc needs a value}"; shift 2 ;;
     --stack)     STACK="${2:?--stack needs a value}"; shift 2 ;;
+    --adopt)     MODE="adopt"; shift ;;
     --public)    VISIBILITY="public"; shift ;;
     --no-github) DO_GITHUB=0; shift ;;
     --dev-root)  DEV_ROOT="${2:?--dev-root needs a value}"; shift 2 ;;
@@ -53,7 +59,11 @@ TODAY="$(date +%Y-%m-%d)"
 
 # ---------- Preflight ----------
 [ -d "$DEV_ROOT" ] || { echo "ERROR: dev root $DEV_ROOT does not exist" >&2; exit 1; }
-[ ! -e "$TARGET" ] || { echo "ERROR: $TARGET already exists — refusing to touch it" >&2; exit 1; }
+if [ "$MODE" = "adopt" ]; then
+  [ -d "$TARGET" ] || { echo "ERROR: $TARGET does not exist — nothing to adopt (drop --adopt to create a new project)" >&2; exit 1; }
+else
+  [ ! -e "$TARGET" ] || { echo "ERROR: $TARGET already exists — refusing to touch it (use --adopt to onboard the existing directory)" >&2; exit 1; }
+fi
 
 GIT_NAME="$(git config --global user.name || true)"
 GIT_EMAIL="$(git config --global user.email || true)"
@@ -61,48 +71,109 @@ if [ -z "$GIT_NAME" ] || [ -z "$GIT_EMAIL" ]; then
   echo "ERROR: set git identity first: git config --global user.name / user.email" >&2; exit 1
 fi
 
-if [ "$DO_GITHUB" -eq 1 ]; then
+# An adopted repo that already has an origin remote needs nothing from gh.
+HAS_ORIGIN=0
+if [ "$MODE" = "adopt" ] && git -C "$TARGET" remote get-url origin >/dev/null 2>&1; then
+  HAS_ORIGIN=1
+fi
+
+REPO_EXISTS_NO_ORIGIN=0
+if [ "$DO_GITHUB" -eq 1 ] && [ "$HAS_ORIGIN" -eq 0 ]; then
   gh auth status >/dev/null 2>&1 || { echo "ERROR: gh is not authenticated (gh auth status failed)" >&2; exit 1; }
   if [ -z "$GH_OWNER" ]; then
     GH_OWNER="$(gh api user -q .login)"
   fi
   if gh repo view "$GH_OWNER/$NAME" >/dev/null 2>&1; then
-    echo "ERROR: github.com/$GH_OWNER/$NAME already exists — pick another name" >&2; exit 1
+    if [ "$MODE" = "adopt" ]; then
+      # The repo exists remotely but this checkout isn't wired to it. Which history
+      # wins is a judgment call — Phase B, not a script guess.
+      REPO_EXISTS_NO_ORIGIN=1
+    else
+      echo "ERROR: github.com/$GH_OWNER/$NAME already exists — pick another name" >&2; exit 1
+    fi
   fi
 fi
 
 # ---------- Directory + git identity ----------
-mkdir -p "$TARGET"
-cd "$TARGET"
-git init -b main -q
+ADOPT_BASE="none"
+BRANCH_NOTE="kept as found"
+if [ "$MODE" = "adopt" ]; then
+  cd "$TARGET"
+  TOPLEVEL="$(git rev-parse --show-toplevel 2>/dev/null || true)"
+  if [ "$TOPLEVEL" = "$(pwd -P)" ]; then
+    # A mid-merge/rebase repo can't take a partial (pathspec) commit — finish or abort first.
+    GITDIR="$(git rev-parse --git-dir)"
+    if [ -e "$GITDIR/MERGE_HEAD" ] || [ -d "$GITDIR/rebase-merge" ] || [ -d "$GITDIR/rebase-apply" ]; then
+      echo "ERROR: $TARGET is mid-merge/rebase — finish or abort it, then re-run --adopt" >&2; exit 1
+    fi
+    if git rev-parse -q --verify HEAD >/dev/null 2>&1; then
+      ADOPT_BASE="$(git rev-parse HEAD)"   # history before this sha is immutable
+    else
+      git symbolic-ref HEAD refs/heads/main   # repo has no commits yet — naming the unborn branch is safe
+      BRANCH_NOTE="unborn — named main by adopt"
+    fi
+  else
+    git init -b main -q   # not a repo of its own (bare dir, or nested under some parent repo)
+    BRANCH_NOTE="new repo — initialized by adopt"
+    if [ -n "$TOPLEVEL" ]; then
+      echo "note: directory sat inside the repo at $TOPLEVEL — it now has its own nested repo" >&2
+    fi
+  fi
+else
+  mkdir -p "$TARGET"
+  cd "$TARGET"
+  git init -b main -q
+fi
+BRANCH="$(git branch --show-current)"
+[ -n "$BRANCH" ] || BRANCH="detached"
+DIRTY_BEFORE="$(git status --porcelain | grep -c . || true)"   # counted before scaffold files land
 # Pin identity per-repo so global config drift can never mis-attribute commits.
 git config user.name "$GIT_NAME"
 git config user.email "$GIT_EMAIL"
 
-# ---------- README / CHANGELOG ----------
-cat > README.md <<EOF
+# ---------- Scaffold files (gap-fill: each lands only where nothing exists) ----------
+CREATED=()
+KEPT=()
+
+if [ ! -e README.md ]; then
+  CREATED+=("README.md")
+  if [ "$MODE" = "adopt" ]; then STATUS_LINE="Status: adopted to standard $TODAY, resuming."
+  else STATUS_LINE="Status: bootstrapped $TODAY, pre-feature."; fi
+  cat > README.md <<EOF
 # $NAME
 
 $DESC
 
-Status: bootstrapped $TODAY, pre-feature.
+$STATUS_LINE
 
 ## Commands
 
 See CLAUDE.md once the stack scaffold lands.
 EOF
+else
+  KEPT+=("README.md")
+fi
 
-cat > CHANGELOG.md <<EOF
+if [ ! -e CHANGELOG.md ]; then
+  CREATED+=("CHANGELOG.md")
+  if [ "$MODE" = "adopt" ]; then EVENT="adopt — brought to standard"; else EVENT="bootstrap"; fi
+  cat > CHANGELOG.md <<EOF
 # Changelog
 
 ## [Unreleased]
 
-- $TODAY: bootstrap ($STACK) via project-onboard.
+- $TODAY: $EVENT ($STACK) via project-onboard.
 EOF
+else
+  KEPT+=("CHANGELOG.md")
+fi
 
 # ---------- .gitignore (per stack; agent state dirs always ignored) ----------
-{
-  cat <<'EOF'
+AGENT_IGNORES=".claude/ .serena/"
+if [ ! -e .gitignore ]; then
+  CREATED+=(".gitignore")
+  {
+    cat <<'EOF'
 .DS_Store
 *.log
 .env
@@ -111,18 +182,18 @@ EOF
 .claude/
 .serena/
 EOF
-  case "$STACK" in
-    web-ts|node-ts)
-      cat <<'EOF'
+    case "$STACK" in
+      web-ts|node-ts)
+        cat <<'EOF'
 node_modules/
 dist/
 coverage/
 test-results/
 playwright-report/
 EOF
-      ;;
-    ios)
-      cat <<'EOF'
+        ;;
+      ios)
+        cat <<'EOF'
 build/
 DerivedData/
 xcuserdata/
@@ -131,9 +202,9 @@ xcuserdata/
 *.dSYM.zip
 .swiftpm/
 EOF
-      ;;
-    python)
-      cat <<'EOF'
+        ;;
+      python)
+        cat <<'EOF'
 __pycache__/
 *.pyc
 .venv/
@@ -144,12 +215,21 @@ dist/
 .mypy_cache/
 .ruff_cache/
 EOF
-      ;;
-  esac
-} > .gitignore
+        ;;
+    esac
+  } > .gitignore
+else
+  KEPT+=(".gitignore")
+  MISSING_IGNORES=""
+  for entry in $AGENT_IGNORES; do
+    grep -qF "${entry%/}" .gitignore || MISSING_IGNORES="$MISSING_IGNORES $entry"
+  done
+fi
 
 # ---------- CLAUDE.md skeleton (Phase B fills every TODO(onboard)) ----------
-cat > CLAUDE.md <<EOF
+if [ ! -e CLAUDE.md ]; then
+  CREATED+=("CLAUDE.md")
+  cat > CLAUDE.md <<EOF
 **Extends ~/.claude/CLAUDE.md**
 
 # $NAME — Project Rules
@@ -182,9 +262,14 @@ TODO(onboard): project-specific BLOCKING rules (things reviews flag as errors).
   (serena memories at minimum; your memory system's project scope if you run one).
 - serena: registered at $TARGET.
 EOF
+else
+  KEPT+=("CLAUDE.md")
+fi
 
 # ---------- .coderabbit.yaml skeleton ----------
-cat > .coderabbit.yaml <<EOF
+if [ ! -e .coderabbit.yaml ]; then
+  CREATED+=(".coderabbit.yaml")
+  cat > .coderabbit.yaml <<EOF
 # yaml-language-server: \$schema=https://coderabbit.ai/integrations/schema.v2.json
 # NOTE: CodeRabbit reads this file from the DEFAULT branch — it takes effect
 # after the first push to main. Validate with \`@coderabbitai configuration\`
@@ -237,22 +322,51 @@ knowledge_base:
       - "README.md"
       - "docs/**/*.md"
 EOF
+else
+  KEPT+=(".coderabbit.yaml")
+fi
 
-# ---------- Initial commit (plain message) ----------
-git add README.md CHANGELOG.md .gitignore CLAUDE.md .coderabbit.yaml
-git commit -q -m "chore: bootstrap $NAME — $DESC"
+# ---------- Commit (plain message) ----------
+# Pathspec-scoped commit: ONLY files this run created land in it. Anything the
+# user had staged before adopt stays staged and uncommitted — tree as found.
+if [ "${#CREATED[@]}" -gt 0 ]; then
+  git add "${CREATED[@]}"
+  if [ "$MODE" = "adopt" ]; then
+    git commit -q -m "chore: adopt $NAME — gap-fill to standard" -- "${CREATED[@]}"
+  else
+    git commit -q -m "chore: bootstrap $NAME — $DESC" -- "${CREATED[@]}"
+  fi
+fi
 
 # ---------- GitHub ----------
-if [ "$DO_GITHUB" -eq 1 ]; then
-  gh repo create "$GH_OWNER/$NAME" "--$VISIBILITY" --source . --remote origin --push \
-    --description "$DESC" >/dev/null
-  echo "github: $(gh repo view "$GH_OWNER/$NAME" --json visibility,defaultBranchRef \
-    --template '{{.visibility}} default={{.defaultBranchRef.name}}')"
+if [ "$HAS_ORIGIN" -eq 1 ]; then
+  echo "github: origin already configured — $(git remote get-url origin) (left untouched; push is Phase B)"
+elif [ "$DO_GITHUB" -eq 1 ]; then
+  if [ "$REPO_EXISTS_NO_ORIGIN" -eq 1 ]; then
+    echo "github: $GH_OWNER/$NAME exists remotely but this checkout has no origin — reconcile in Phase B (compare histories before wiring 'git remote add origin')"
+  else
+    gh repo create "$GH_OWNER/$NAME" "--$VISIBILITY" --source . --remote origin --push \
+      --description "$DESC" >/dev/null
+    echo "github: $(gh repo view "$GH_OWNER/$NAME" --json visibility,defaultBranchRef \
+      --template '{{.visibility}} default={{.defaultBranchRef.name}}')"
+  fi
 else
   echo "github: skipped (--no-github)"
 fi
 
 # ---------- Report ----------
-echo "scaffold: OK — $TARGET ($STACK, $VISIBILITY)"
+echo "scaffold: OK — $TARGET ($STACK, $VISIBILITY, mode=$MODE)"
 echo "identity: $(git config user.name) <$(git config user.email)>"
+if [ "$MODE" = "adopt" ]; then
+  echo "adopt-base: $ADOPT_BASE"   # gate anchor; history before it is immutable
+  echo "branch: $BRANCH ($BRANCH_NOTE)"
+  if git rev-parse -q --verify "${ADOPT_BASE}" >/dev/null 2>&1; then
+    echo "audit: last pre-adopt commit $(git log -1 --format=%cs "$ADOPT_BASE"); $DIRTY_BEFORE dirty path(s) before adopt — left in place, not staged"
+  else
+    echo "audit: no pre-adopt commits; $DIRTY_BEFORE dirty path(s) before adopt — left in place, not staged"
+  fi
+  if [ "${#CREATED[@]}" -gt 0 ]; then echo "created: ${CREATED[*]}"; else echo "created: nothing — scaffold files all present"; fi
+  if [ "${#KEPT[@]}" -gt 0 ]; then echo "kept (reconcile in Phase B, never replace): ${KEPT[*]}"; fi
+  if [ -n "${MISSING_IGNORES:-}" ]; then echo "gitignore: pre-existing, missing agent-state entries:${MISSING_IGNORES} — add in Phase B"; fi
+fi
 echo "next: SKILL.md Phase B — stack scaffold, fill every TODO(onboard), serena onboarding, verification gate"
