@@ -1,6 +1,6 @@
 {
   "name": "project-onboard",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "New-project bootstrapper: scaffolder script + judgment runbook that takes a project from nothing to a consistent standard — private GitHub repo (public only on explicit request), pinned per-repo git identity, project CLAUDE.md, CodeRabbit config on main from day one, serena onboarding (full six-memory set), and a quantitative verification gate.",
   "author": {
     "name": "TheMizeGuy",
