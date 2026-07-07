@@ -14,10 +14,12 @@ One skill, two phases:
 
 ## Install
 
-Clone this repository, then add it to Claude Code as a plugin:
+Add this repository as a Claude Code plugin marketplace, then install the
+plugin from it:
 
 ```
-git clone https://github.com/TheMizeGuy/project-onboard-public.git
+/plugin marketplace add TheMizeGuy/project-onboard-public
+/plugin install project-onboard@project-onboard-public
 ```
 
 ## Use
