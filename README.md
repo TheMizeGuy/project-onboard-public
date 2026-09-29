@@ -7,7 +7,7 @@ One skill, two phases:
 
 - **Phase A (mechanical)** — `scripts/onboard.sh` creates the directory,
   `git init -b main` with your git identity pinned per-repo, README, CHANGELOG,
-  stack `.gitignore`, a CLAUDE.md skeleton, a `.coderabbit.yaml` skeleton, a
+  stack `.gitignore`, a CLAUDE.md skeleton, a
   plain-message initial commit, and the GitHub repo — **private unless public
   is explicitly requested**.
 - **Phase B (judgment)** — stack scaffold with context7-verified versions,
