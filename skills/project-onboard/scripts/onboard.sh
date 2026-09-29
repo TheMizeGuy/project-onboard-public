@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # project-onboard scaffolder — the mechanical phase (Phase A) of the project-onboard skill.
-# Judgment work (CLAUDE.md fill-in, CodeRabbit instructions, stack scaffold, serena
+# Judgment work (CLAUDE.md fill-in, stack scaffold, serena
 # onboarding) is Phase B in SKILL.md — this script never attempts it.
 #
 # Usage:
@@ -264,66 +264,6 @@ TODO(onboard): project-specific BLOCKING rules (things reviews flag as errors).
 EOF
 else
   KEPT+=("CLAUDE.md")
-fi
-
-# ---------- .coderabbit.yaml skeleton ----------
-if [ ! -e .coderabbit.yaml ]; then
-  CREATED+=(".coderabbit.yaml")
-  cat > .coderabbit.yaml <<EOF
-# yaml-language-server: \$schema=https://coderabbit.ai/integrations/schema.v2.json
-# NOTE: CodeRabbit reads this file from the DEFAULT branch — it takes effect
-# after the first push to main. Validate with \`@coderabbitai configuration\`
-# in any PR.
-
-# If your GitHub org keeps a central CodeRabbit baseline repo, uncomment to
-# inherit it (scalars below override central; arrays merge with dedupe):
-# inheritance: true
-
-language: "en-US"
-tone_instructions: >
-  Be direct and technical. Skip pleasantries. Focus on bugs, security, and
-  correctness over style. TODO(onboard): one sentence of project context.
-
-reviews:
-  profile: "assertive"
-  request_changes_workflow: true
-  high_level_summary: true
-  poem: false
-  commit_status: true
-  fail_commit_status: false
-  enable_prompt_for_ai_agents: true
-  abort_on_close: true
-
-  instructions: |
-    TODO(onboard): 2-4 sentences of project context, then the BLOCKING rules
-    (flag as error, not nitpick) and a "Do NOT comment on" list.
-
-  auto_review:
-    enabled: true
-    auto_incremental_review: true
-    drafts: false
-    ignore_title_keywords: ["WIP", "DO NOT MERGE", "wip", "[skip ci]"]
-    base_branches: ["main"]
-
-  path_filters:
-    # TODO(onboard): exclude generated/binary paths for this stack.
-    - "!**/node_modules/**"
-    - "!**/dist/**"
-
-chat:
-  auto_reply: true
-
-knowledge_base:
-  opt_out: false
-  code_guidelines:
-    enabled: true
-    filePatterns:
-      - "CLAUDE.md"
-      - "README.md"
-      - "docs/**/*.md"
-EOF
-else
-  KEPT+=(".coderabbit.yaml")
 fi
 
 # ---------- Commit (plain message) ----------

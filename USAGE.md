@@ -20,7 +20,7 @@
 ## What the agent must NOT do
 
 - Decide visibility itself — private is the default, public needs the user's word.
-- Skip the `.coderabbit.yaml` or leave `TODO(onboard)` markers behind.
+- Leave `TODO(onboard)` markers behind.
 - Declare done without pasting the Verification Gate outputs.
 - In adopt mode: rewrite history, overwrite existing files, touch pre-existing
   dirty files, or rename branches / flip visibility uninvited.

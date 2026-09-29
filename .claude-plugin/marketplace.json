@@ -9,7 +9,7 @@
   "plugins": [
     {
       "name": "project-onboard",
-      "description": "Project onboarder: scaffolder script + judgment runbook that takes a project to a consistent standard — brand-new, or an existing directory via adopt mode (stale revivals and never-properly-set-up projects: gap-fill only, history immutable, working tree as found). Private GitHub repo (public only on explicit request), pinned per-repo git identity, project CLAUDE.md, CodeRabbit config on main from day one, serena onboarding (full six-memory set), and a quantitative verification gate.",
+      "description": "Project onboarder: scaffolder script + judgment runbook that takes a project to a consistent standard — brand-new, or an existing directory via adopt mode (stale revivals and never-properly-set-up projects: gap-fill only, history immutable, working tree as found). Private GitHub repo (public only on explicit request), pinned per-repo git identity, project CLAUDE.md, serena onboarding (full six-memory set), and a quantitative verification gate.",
       "source": "./",
       "version": "0.2.0",
       "category": "workflow",
@@ -19,7 +19,6 @@
         "onboarding",
         "new-project",
         "git",
-        "coderabbit",
         "serena",
         "claude-md",
         "workspace",

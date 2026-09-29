@@ -1,6 +1,6 @@
 ---
 name: project-onboard
-description: Use when starting a new project in your workspace OR bringing an existing one up to standard — the user says "new project", "bootstrap X", "set up a repo for...", "onboard a project", "revive X", "get X going again", "resume that old project", "X never got set up properly" — BEFORE creating or reworking any directory, git repo, CLAUDE.md, or review config by hand.
+description: Use when starting a new project in your workspace OR bringing an existing one up to standard — the user says "new project", "bootstrap X", "set up a repo for...", "onboard a project", "revive X", "get X going again", "resume that old project", "X never got set up properly" — BEFORE creating or reworking any directory, git repo, or CLAUDE.md by hand.
 ---
 
 # Project Onboard
@@ -33,7 +33,7 @@ Same phases, same gate; adopt binds four hard rules:
   the first adopt run's sha is the permanent gate anchor — never re-run
   `--adopt` for a fresh one after history changed.
 - **Never overwrite an existing file.** Phase A gap-fills what's missing;
-  pre-existing README/CLAUDE.md/.coderabbit.yaml get reconciled in Phase B.
+  pre-existing README/CLAUDE.md get reconciled in Phase B.
 - **Leave the working tree as found.** Pre-existing dirty/untracked files are
   never staged, stashed, moved, reverted, or deleted — surface them to the
   user instead.
@@ -56,9 +56,8 @@ Same phases, same gate; adopt binds four hard rules:
 
 New mode creates the directory, `git init -b main`, pins your global git
 identity per-repo (so later global-config drift can't mis-attribute commits),
-writes README, CHANGELOG, stack .gitignore, CLAUDE.md skeleton,
-.coderabbit.yaml skeleton, makes a plain-message initial commit, creates the
-GitHub repo (private default) and pushes. `--no-github` for local-only runs.
+writes README, CHANGELOG, stack .gitignore and a CLAUDE.md skeleton, makes a
+plain-message initial commit, creates the GitHub repo (private default) and pushes. `--no-github` for local-only runs.
 
 Adopt mode pins the same identity, `git init`s only when the directory isn't
 already its own repo, creates only the scaffold files that are MISSING,
@@ -80,8 +79,8 @@ reconciles them), and any missing agent-state .gitignore entries.
    Current majors via context7 (`resolve-library-id` → `query-docs`), never
    hand-pinned from memory. Run build + test + lint green before the scaffold
    commit.
-2. **Fill every `TODO(onboard)`** in CLAUDE.md and .coderabbit.yaml — stack
-   table, verified commands, BLOCKING review rules, path_filters.
+2. **Fill every `TODO(onboard)`** in CLAUDE.md — stack
+   table, verified commands, BLOCKING review rules.
    `grep -rn "TODO(onboard)"` must return nothing when you're done.
    Adopt: files the script reported as `kept:` get RECONCILED to standard
    shape — CLAUDE.md gains the `**Extends ~/.claude/CLAUDE.md**` first line and
@@ -119,7 +118,6 @@ LICENSE decision · branch protection · deploy target.
 | Visibility | `gh repo view <owner>/<Name> --json visibility` | `PRIVATE` unless explicitly public; adopt with a pre-existing repo: as found — flipping needs the user's word |
 | Remote | `git -C <dir> remote get-url origin` | points at `<owner>/<Name>` (https or ssh; adopted remotes keep their form) |
 | CLAUDE.md | `head -1 <dir>/CLAUDE.md` | `**Extends ~/.claude/CLAUDE.md**` |
-| CodeRabbit | `test -f <dir>/.coderabbit.yaml` | present, TODOs filled |
 | No TODOs left | `grep -rn "TODO(onboard)" <dir>` | empty |
 | serena | `list_memories` for the project | ≥ 6 memories (or MCP absent, noted) |
 | Workspace row | grep your workspace index | 1 row (or no index kept, noted) |
@@ -135,7 +133,6 @@ LICENSE decision · branch protection · deploy target.
 | Renaming the branch or flipping visibility during adopt | Report as found — `master`, ssh remotes, and public repos stay until the user says otherwise. |
 | Trusting a stale README/CLAUDE.md as current truth | Step-0 audit first: log age, remote drift, toolchain staleness — then reconcile. |
 | Public repo because visibility wasn't stated | Private is the default. Public requires the user's explicit word. |
-| Skipping .coderabbit.yaml ("no PRs yet") | It must live on main BEFORE the first PR to take effect. Scaffold ships it. |
 | One serena memory "because the project is empty" | All six, always — they seed every future session. |
 | Hand-pinning dep versions from memory | context7 or `@latest` resolution — training-data majors are stale. |
 | Declaring done at "directory exists" | Done = every Verification Gate row passes with pasted output. |
